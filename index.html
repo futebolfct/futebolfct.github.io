@@ -617,18 +617,45 @@ function aoEscolherFoto(ev){
 
 gid('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')fecharModal();});
 
-async function iniciar(){
+async function lerFotos(){
   try{
-    const resp=await fetch('dados.json?t='+Date.now(),{cache:'no-store'});
-    if(resp.ok){
-      const d=await resp.json();
-      if(d&&Array.isArray(d.jogos)){
-        state=d; if(!state.fotos)state.fotos={};
-        if(!state.roster){state.roster=[];}
-        PUBLIC=true; document.body.classList.add('public-mode');
+    const r=await fetch('dados.json?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){ const d=await r.json(); if(d&&d.fotos)return d.fotos; }
+  }catch(e){}
+  return {};
+}
+async function iniciar(){
+  let ok=false;
+  /* 1) planilha publicada ao lado (FCT.xlsx) manda no site */
+  try{
+    const r=await fetch('FCT.xlsx?t='+Date.now(),{cache:'no-store'});
+    if(r.ok){
+      const buf=await r.arrayBuffer();
+      const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      const res=parseAOA(aoa);
+      if(res.jogos.length){
+        state={jogos:res.jogos, roster:res.roster, fotos:await lerFotos()};
+        ok=true;
       }
     }
   }catch(e){}
+  /* 2) sem planilha, usa o dados.json */
+  if(!ok){
+    try{
+      const resp=await fetch('dados.json?t='+Date.now(),{cache:'no-store'});
+      if(resp.ok){
+        const d=await resp.json();
+        if(d&&Array.isArray(d.jogos)){
+          state=d; if(!state.fotos)state.fotos={};
+          if(!state.roster){state.roster=[];}
+          ok=true;
+        }
+      }
+    }catch(e){}
+  }
+  if(ok){ PUBLIC=true; document.body.classList.add('public-mode'); }
   render();
 }
 iniciar();
